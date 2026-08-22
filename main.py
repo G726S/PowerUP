@@ -1,5 +1,6 @@
 import pygame
 import sys
+import numpy
 sys.path.insert(0, '/customSpriteSheet')
 import customSpriteSheet
 import spritesheet
@@ -21,3 +22,13 @@ class Main():
     @staticmethod
     def GetRenderOffsettedPos(sprite, position, horizontalMultiplier):
         return (position[0] - int(sprite.sprite_width() * .5 / horizontalMultiplier), position[1] - int(sprite.sprite_width() * .5))
+    @staticmethod
+    def DistSqr(vec1, vec2):
+        diffX = vec1[0] - vec2[0]
+        diffY = vec1[1] - vec2[1]
+        return diffX * diffX + diffY * diffY
+    @staticmethod
+    def Distance(vec1, vec2):
+        diffX = vec1[0] - vec2[0]
+        diffY = vec1[1] - vec2[1]
+        return numpy.sqrt(diffX * diffX, diffY * diffY)

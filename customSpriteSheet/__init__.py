@@ -34,7 +34,7 @@ class Origin(enum.Enum):
 
 
 class SpriteSheet:
-    def __init__(self, file_path: str, columns: int, rows: int, colour_key: Colour = Colour(255, 0, 255)) -> None:
+    def __init__(self, file_path: str, columns: int, rows: int, colour_key: Colour = Colour(255, 0, 255), scale: Tuple[int, int] = (-1, -1)) -> None:
         """Creates a sprite sheet from a file.
 
         Parameters:
@@ -45,6 +45,9 @@ class SpriteSheet:
         """
         self.__colour_key: Colour = colour_key
         self.__sheet: Surface = pygame.image.load(file_path).convert()
+        if (scale != (-1, -1)):
+            sheet = self.__sheet
+            self.__sheet = pygame.transform.scale(sheet, (sheet.get_width() * scale[0], sheet.get_height() * scale[1]))
         self.__sheet.set_colorkey(self.__colour_key)
         self.__columns: int = columns
         self.__rows: int = rows
@@ -124,7 +127,7 @@ class SpriteSheet:
             )
         )
 
-    def blit(self, surface: Surface, sprite_id: int, position: Tuple[int, int], origin: Origin = Origin.TopLeft, flipX = False, scale: Tuple[int, int] = (-1, -1)) -> None:
+    def blit(self, surface: Surface, sprite_id: int, position: Tuple[int, int], origin: Origin = Origin.TopLeft, flipX = False) -> None:
         """Blits a sprite from this sprite sheet onto the given surface.
 
         Parameters:
@@ -133,14 +136,11 @@ class SpriteSheet:
             - position: (x, y) tuple of pixel coordinates on surface.
             - origin (optional): origin of the drawn sprite. Top Left corner is default.
         """
-        if scale == (-1, -1):
-            sheet = self.__sheet
-            scale = (sheet.get_width(), sheet.get_height())
         offset_x, offset_y = self.__offsets[origin.value]
         x, y = position
         blit_position = (x + offset_x, y + offset_y)
 
-        surface.blit(pygame.transform.scale(pygame.transform.flip(self.__sheet, flipX, False), scale), blit_position, self.__sprites[sprite_id])
+        surface.blit(pygame.transform.flip(self.__sheet, flipX, False), blit_position, self.__sprites[sprite_id])
 
     def blit_area(self, surface: Surface, area_name: str, position: Tuple[int, int], origin: Origin = Origin.TopLeft) -> None:
         """Blits named area from this sprite sheet onto the given surface.
