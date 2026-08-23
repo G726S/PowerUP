@@ -11,17 +11,22 @@ class Main():
     monitorSurface = None
     screen = None
     isAnimationUpdate = False
+    epsilon = .1
     @staticmethod
     def Init():
         Main.display = pygame.display
         Main.monitorSurface = Main.display
         Main.info = Main.monitorSurface.Info()
         Main.displaySize = (Main.info.current_w, Main.info.current_h)
-        Main.halfDisplaySize = (int(Main.displaySize[0] * .5), int(Main.displaySize[1] * .5))
+        Main.halfDisplaySize = IVector2(int(Main.displaySize[0] * .5), int(Main.displaySize[1] * .5))
         Main.screen = Main.display.set_mode((Main.info.current_w, Main.info.current_h))
+        Main.epsilon = .1
     @staticmethod
     def GetRenderOffsettedPos(sprite, position, horizontalMultiplier):
         return (position[0] - int(sprite.sprite_width() * .5 / horizontalMultiplier), position[1] - int(sprite.sprite_width() * .5))
+    @staticmethod
+    def Lerp(a, b, t):
+        return a * (1.0 - t) + (b * t)
 class IVector2():
     def __init__(self):
         self.x = 0
@@ -54,3 +59,6 @@ class IVector2():
     @staticmethod
     def GetRight():
         return IVector2(1, 0)
+    @staticmethod
+    def GetUp():
+        return IVector2(0, 1)

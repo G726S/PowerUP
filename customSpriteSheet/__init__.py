@@ -127,7 +127,7 @@ class SpriteSheet:
             )
         )
 
-    def blit(self, surface: Surface, sprite_id: int, position: Tuple[int, int], origin: Origin = Origin.TopLeft, flipX = False) -> None:
+    def blit(self, surface: Surface, sprite_id: int, position: Tuple[int, int], origin: Origin = Origin.TopLeft, flipX: bool = False, offset = (0, 0)) -> None:
         """Blits a sprite from this sprite sheet onto the given surface.
 
         Parameters:
@@ -138,7 +138,7 @@ class SpriteSheet:
         """
         offset_x, offset_y = self.__offsets[origin.value]
         x, y = position
-        blit_position = (x + offset_x, y + offset_y)
+        blit_position = (x + offset_x + offset[0], y + offset_y + offset[1])
 
         surface.blit(pygame.transform.flip(self.__sheet, flipX, False), blit_position, self.__sprites[sprite_id])
 
