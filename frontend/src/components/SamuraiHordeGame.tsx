@@ -1,76 +1,74 @@
 import Phaser from "phaser";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as api from "../api/client";
-import { createSamuraiDuel, SamuraiDuelScene } from "../game/SamuraiDuelScene";
+import { createSamuraiHorde, SamuraiHordeScene } from "../game/SamuraiHordeScene";
 import { CORRECT_ANSWER_BONUS, DEFAULT_SESSION_SECONDS, LOW_ENERGY_THRESHOLD, STARTING_ENERGY } from "../lib/gameEconomy";
 import { useSessionId } from "../session/SessionContext";
 import { McqOverlay } from "./McqOverlay";
 import { XIcon, ZapIcon } from "./icons";
 
-interface SamuraiGameProps {
+interface SamuraiHordeGameProps {
   courseId: string;
   onExit: () => void;
   sessionSeconds?: number;
 }
 
-const ATTACK_COST = 90;
-const MOVE_COST = 20;
-const ROUND_FLASH_MS = 1400;
+const ATTACK_COST = 80;
+const MOVE_COST = 15;
+// Up to 3 enemies can land a hit within the same ~1s window once they've
+// all closed in -- at the old 180 this could burn through an entire MCQ
+// refuel (+250) in one bad moment. Small enough now that a few hits is a
+// real cost, not an instant re-drain back to zero.
+const HIT_COST = 35;
 
 type Phase = "playing" | "mcq" | "session-end";
 
-/** A lightweight browser-native duel replacing the original teammate-built
- * pygame/WASM version -- that build turned out to hang indefinitely on a
- * pygbag asset-preloader stall in real browsers (not just headless test
- * environments), with no reliable fix available from this side of the
- * loader. Same bridge pattern as MonkeyGame.tsx: the Phaser scene owns the
- * fight/AI, this component owns the shared study-app economy (energy,
- * session timer, MCQ refuel) -- including forcing the MCQ open (rather
- * than resetting progress) when energy hits zero, matching Monkey Climb. */
-export function SamuraiGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION_SECONDS }: SamuraiGameProps) {
+/** Built from a teammate's pygame source -- multiple respawning enemies
+ * swarm the player rather than a single 1v1 opponent, using the actual
+ * character spritesheets from that source (see frontend/public/samurai-horde/
+ * and SamuraiHordeScene.ts's preload()) -- same real art/animations, just
+ * re-hosted for Phaser instead of pygame's sprite-sheet loader.
+ *
+ * No separate in-game health bar -- getting hit drains the SAME energy
+ * meter that moving/attacking spends, so there's one bar, not two: taking
+ * a beating just means you need to answer a question sooner to stay in
+ * the fight, same "the meter IS the point of the game" rule as the other
+ * two games, with combat now feeding directly into it instead of being a
+ * separate win/lose track. */
+export function SamuraiHordeGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION_SECONDS }: SamuraiHordeGameProps) {
   const sessionId = useSessionId();
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
-  const sceneRef = useRef<SamuraiDuelScene | null>(null);
+  const sceneRef = useRef<SamuraiHordeScene | null>(null);
 
   const [energy, setEnergy] = useState(STARTING_ENERGY);
+  const [kills, setKills] = useState(0);
   const [phase, setPhase] = useState<Phase>("playing");
   const [secondsLeft, setSecondsLeft] = useState(sessionSeconds);
-  const [stats, setStats] = useState({ answered: 0, correct: 0, wins: 0, losses: 0 });
+  const [stats, setStats] = useState({ answered: 0, correct: 0 });
   const [showLowEnergyToast, setShowLowEnergyToast] = useState(false);
-  const [roundBanner, setRoundBanner] = useState<"won" | "lost" | null>(null);
+  const [showHitFlash, setShowHitFlash] = useState(false);
   const wasAboveThreshold = useRef(true);
   const wasPositiveEnergy = useRef(true);
-  const phaseRef = useRef<Phase>("playing");
-  useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-
-  const handleRoundResult = useCallback((won: boolean) => {
-    setRoundBanner(won ? "won" : "lost");
-    setTimeout(() => setRoundBanner(null), ROUND_FLASH_MS);
-    setStats((s) => ({ ...s, wins: s.wins + (won ? 1 : 0), losses: s.losses + (won ? 0 : 1) }));
-    setTimeout(() => {
-      if (phaseRef.current === "playing") sceneRef.current?.scene.restart();
-    }, ROUND_FLASH_MS);
-  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
-    // Same StrictMode guard as MonkeyGame -- Phaser's boot is async, so a
-    // first (dev-only double-invoked) instance's still-pending "ready"
-    // callback could otherwise attach a second live listener set.
     let disposed = false;
-    const game = createSamuraiDuel(containerRef.current);
+    const game = createSamuraiHorde(containerRef.current);
     gameRef.current = game;
 
     function attach() {
       if (disposed) return;
-      const scene = game.scene.getScene("SamuraiDuel") as SamuraiDuelScene;
+      const scene = game.scene.getScene("SamuraiHorde") as SamuraiHordeScene;
       sceneRef.current = scene;
       scene.events.on("move-tick", () => setEnergy((e) => Math.max(0, e - MOVE_COST)));
       scene.events.on("attack", () => setEnergy((e) => Math.max(0, e - ATTACK_COST)));
-      scene.events.on("round-result", (result: { won: boolean }) => handleRoundResult(result.won));
+      scene.events.on("kills", (total: number) => setKills(total));
+      scene.events.on("hit", () => {
+        setEnergy((e) => Math.max(0, e - HIT_COST));
+        setShowHitFlash(true);
+        setTimeout(() => setShowHitFlash(false), 250);
+      });
     }
     game.events.once(Phaser.Core.Events.READY, attach);
 
@@ -80,11 +78,12 @@ export function SamuraiGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION
       if (gameRef.current === game) gameRef.current = null;
       sceneRef.current = null;
     };
-  }, [handleRoundResult]);
+  }, []);
 
-  // Running out of energy freezes the duel exactly where it is (scene
-  // paused) and forces the MCQ open -- same "the meter is the point of the
-  // game" rule as Monkey Climb, not a loss condition of its own.
+  // Running out of energy freezes the fight exactly where it is (scene
+  // paused) and forces the MCQ open -- same rule as the other two games.
+  // Getting hit drains this same meter, so a bad fight funnels straight
+  // into "answer to survive" instead of a separate defeat state.
   useEffect(() => {
     const wasPositive = wasPositiveEnergy.current;
     if (wasPositive && energy <= 0 && phase === "playing") {
@@ -96,8 +95,8 @@ export function SamuraiGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION
   useEffect(() => {
     const game = gameRef.current;
     if (!game) return;
-    if (phase === "mcq") game.scene.pause("SamuraiDuel");
-    else if (phase === "playing") game.scene.resume("SamuraiDuel");
+    if (phase === "mcq") game.scene.pause("SamuraiHorde");
+    else if (phase === "playing") game.scene.resume("SamuraiHorde");
   }, [phase]);
 
   function handleMcqClose() {
@@ -141,8 +140,9 @@ export function SamuraiGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION
   async function handlePlayAgain() {
     await api.endRound(sessionId, courseId).catch(() => {});
     setEnergy(STARTING_ENERGY);
+    setKills(0);
     setSecondsLeft(sessionSeconds);
-    setStats({ answered: 0, correct: 0, wins: 0, losses: 0 });
+    setStats({ answered: 0, correct: 0 });
     wasAboveThreshold.current = true;
     wasPositiveEnergy.current = true;
     setPhase("playing");
@@ -176,9 +176,7 @@ export function SamuraiGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION
           </div>
           <span className="shrink-0 font-mono text-xs font-bold text-[var(--color-ink)]">{energy}</span>
         </div>
-        <span className="font-mono text-xs font-bold text-[var(--color-ink)]">
-          {stats.wins}W-{stats.losses}L
-        </span>
+        <span className="font-mono text-xs font-bold text-[var(--color-ink)]">KILLS {kills}</span>
         <span className="font-mono text-xs font-bold text-[var(--color-ink)]">
           {minutes}:{seconds}
         </span>
@@ -195,21 +193,11 @@ export function SamuraiGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION
           </div>
         )}
 
-        {roundBanner && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/20">
-            <span
-              className={`rounded-lg border-2 border-[var(--color-ink)] px-5 py-3 font-mono text-lg font-bold text-[var(--color-ink)] shadow-[var(--shadow-brutal-md)] ${
-                roundBanner === "won" ? "bg-[var(--color-green-soft)]" : "bg-white"
-              }`}
-            >
-              {roundBanner === "won" ? "VICTORY -- new duel starting!" : "DEFEATED -- new duel starting!"}
-            </span>
-          </div>
-        )}
+        {showHitFlash && <div className="pointer-events-none absolute inset-0 z-10 bg-[var(--color-red)]/25" />}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-[var(--color-ink)] bg-[var(--color-cream)] px-4 py-3 sm:px-5 sm:py-4">
-        <p className="font-mono text-xs text-[var(--color-muted)]">ARROWS OR A/D TO MOVE · SPACE/W TO ATTACK</p>
+        <p className="font-mono text-xs text-[var(--color-muted)]">WASD OR ARROWS TO MOVE · SPACE TO ATTACK</p>
         <button
           type="button"
           onClick={() => setPhase("mcq")}
@@ -236,9 +224,7 @@ export function SamuraiGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-sm rounded-lg border-2 border-[var(--color-ink)] bg-white p-7 text-center shadow-[var(--shadow-brutal-lg)]">
             <p className="font-mono text-xs font-bold tracking-wide text-[var(--color-muted)]">SESSION COMPLETE</p>
-            <p className="mt-2 font-serif text-3xl font-bold text-[var(--color-ink)]">
-              {stats.wins}W - {stats.losses}L
-            </p>
+            <p className="mt-2 font-serif text-3xl font-bold text-[var(--color-ink)]">{kills} kills</p>
             <p className="mt-1 font-mono text-sm text-[var(--color-ink)]">
               {stats.correct}/{stats.answered} questions correct
             </p>

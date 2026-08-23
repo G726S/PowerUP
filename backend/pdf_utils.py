@@ -9,7 +9,7 @@ import os
 
 from google.genai import types
 
-from gemini_client import MODEL_NAME, client
+from gemini_client import MODEL_NAME, call_with_backoff, client
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pdf_context_cache")
 INLINE_SIZE_LIMIT = 19 * 1024 * 1024  # Gemini's inline-request limit is ~20MB
@@ -39,7 +39,7 @@ def _load_pdf_part(data: bytes, filename: str):
     with open(tmp_path, "wb") as f:
         f.write(data)
     try:
-        return client.files.upload(file=tmp_path)  # large PDFs: upload instead of inlining
+        return call_with_backoff(client.files.upload, file=tmp_path)  # large PDFs: upload instead of inlining
     finally:
         os.remove(tmp_path)
 
@@ -59,7 +59,7 @@ def distill_context(data: bytes, filename: str) -> str:
         + ADMIN_EXCLUSION_RULE
         + " Output plain text, organized with headings."
     )
-    response = client.models.generate_content(model=MODEL_NAME, contents=[pdf_part, prompt])
+    response = call_with_backoff(client.models.generate_content, model=MODEL_NAME, contents=[pdf_part, prompt])
     if not response.text or not response.text.strip():
         raise ValueError(f"Gemini returned no distilled content for '{filename}'.")
     return response.text

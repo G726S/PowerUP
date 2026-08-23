@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { MonkeyGame } from "./MonkeyGame";
-import { SamuraiGame } from "./SamuraiGame";
+import { SamuraiHordeGame } from "./SamuraiHordeGame";
 import { PlayIcon } from "./icons";
 
 interface GameLobbyProps {
@@ -22,10 +22,10 @@ const DURATION_OPTIONS = [5, 10, 15] as const;
 
 export function GameLobby({ courseId }: GameLobbyProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [activeGame, setActiveGame] = useState<"monkey" | "samurai" | null>(null);
+  const [activeGame, setActiveGame] = useState<"monkey" | "horde" | null>(null);
   const [durationMinutes, setDurationMinutes] = useState<(typeof DURATION_OPTIONS)[number]>(10);
 
-  async function launchGame(game: "monkey" | "samurai") {
+  async function launchGame(game: "monkey" | "horde") {
     try {
       await containerRef.current?.requestFullscreen?.();
     } catch {
@@ -43,8 +43,8 @@ export function GameLobby({ courseId }: GameLobbyProps) {
     <div ref={containerRef} className={activeGame ? "fixed inset-0 z-[60] bg-[#7ec8e3]" : ""}>
       {activeGame === "monkey" ? (
         <MonkeyGame courseId={courseId} onExit={exitGame} sessionSeconds={durationMinutes * 60} />
-      ) : activeGame === "samurai" ? (
-        <SamuraiGame courseId={courseId} onExit={exitGame} sessionSeconds={durationMinutes * 60} />
+      ) : activeGame === "horde" ? (
+        <SamuraiHordeGame courseId={courseId} onExit={exitGame} sessionSeconds={durationMinutes * 60} />
       ) : (
         <div className="flex min-h-[420px] flex-col items-center justify-center gap-8 py-8">
           <div className="text-center">
@@ -93,18 +93,18 @@ export function GameLobby({ courseId }: GameLobbyProps) {
             </div>
 
             <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-[var(--color-ink)] bg-white p-6 text-center shadow-[var(--shadow-brutal-md)]">
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-[var(--color-ink)] bg-[var(--color-cream)] text-3xl">
-                ⚔️
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-[var(--color-ink)] bg-[var(--color-red-soft)] text-3xl">
+                🥷
               </div>
               <div>
-                <h3 className="font-mono text-base font-bold uppercase text-[var(--color-ink)]">Samurai Duel</h3>
+                <h3 className="font-mono text-base font-bold uppercase text-[var(--color-ink)]">Samurai Horde</h3>
                 <p className="mt-1 font-mono text-xs text-[var(--color-muted)]">
-                  Fight for as long as your energy holds -- moving and attacking spend it, questions refuel it.
+                  Fight off a swarm of respawning samurai at once -- last as long as you can, questions refuel you.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => launchGame("samurai")}
+                onClick={() => launchGame("horde")}
                 className="inline-flex items-center gap-1.5 rounded-lg border-2 border-[var(--color-ink)] bg-[var(--color-pink)] px-4 py-2 font-mono text-xs font-bold text-white shadow-[var(--shadow-brutal-sm)] transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[var(--shadow-brutal-md)]"
               >
                 <PlayIcon className="h-3.5 w-3.5" />

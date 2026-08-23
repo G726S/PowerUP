@@ -25,8 +25,8 @@ type Phase = "playing" | "mcq" | "session-end";
  * camera/bananas and reports jump/move/banana/gameover events on its own
  * emitter; this component owns the study-app economy (energy, session
  * timer, MCQ refuel) and reacts to those events, matching the same pattern
- * SamuraiGame uses to bolt the economy onto a game engine it doesn't own
- * the internals of. */
+ * SamuraiHordeGame uses to bolt the economy onto a game engine it doesn't
+ * own the internals of. */
 export function MonkeyGame({ courseId, onExit, sessionSeconds = DEFAULT_SESSION_SECONDS }: MonkeyGameProps) {
   const sessionId = useSessionId();
   const containerRef = useRef<HTMLDivElement>(null);

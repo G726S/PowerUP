@@ -30,7 +30,9 @@
 
   body {
     margin: 0;
-    background-color: var(--color-paper);
+    /* Cream, matching the landing page -- keeps the transition from it to
+       the rest of the app from flashing white in between. */
+    background-color: var(--color-cream);
     color: var(--color-ink);
     font-family: var(--font-mono);
   }
@@ -42,5 +44,25 @@
   :focus-visible {
     outline: 3px solid var(--color-pink);
     outline-offset: 2px;
+  }
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--rot, 0deg));
+  }
+  50% {
+    transform: translateY(-14px) rotate(var(--rot, 0deg));
+  }
+}
+
+@keyframes landing-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
   }
 }

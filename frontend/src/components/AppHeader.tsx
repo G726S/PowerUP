@@ -7,7 +7,7 @@ export function AppHeader() {
       <div className="mx-auto flex max-w-6xl items-center gap-2 px-6 py-4 md:px-10">
         <Link to="/" className="flex items-center gap-2 font-mono text-lg font-bold tracking-tight text-[var(--color-ink)]">
           <BookIcon className="h-5 w-5" />
-          POWERUP
+          BRAINQUEST
         </Link>
       </div>
     </header>

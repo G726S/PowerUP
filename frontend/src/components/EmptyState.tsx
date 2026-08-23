@@ -13,7 +13,7 @@ export function EmptyState({ onCreateCourse }: EmptyStateProps) {
       <div className="space-y-1.5">
         <h2 className="font-serif text-xl font-bold text-[var(--color-ink)]">No courses yet</h2>
         <p className="max-w-sm font-mono text-sm text-[var(--color-muted)]">
-          Add your lecture notes or slides and PowerUp will turn them into a study course you can
+          Add your lecture notes or slides and BrainQuest will turn them into a study course you can
           track progress on.
         </p>
       </div>
