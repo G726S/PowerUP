@@ -22,13 +22,35 @@ class Main():
     @staticmethod
     def GetRenderOffsettedPos(sprite, position, horizontalMultiplier):
         return (position[0] - int(sprite.sprite_width() * .5 / horizontalMultiplier), position[1] - int(sprite.sprite_width() * .5))
+class IVector2():
+    def __init__(self):
+        self.x = 0
+        self.y = 0
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+    def ToTuple(self):
+        return (self.x, self.y)
+    def __neg__(self):
+        return IVector2(-self.x, -self.y)
+    def __add__(self, other):
+        return IVector2(self.x + other.x, self.y + other.y)
+    def __iadd__(self, other):
+        return IVector2(self.x + other.x, self.y + other.y)
+    def __sub__(self, other):
+        return IVector2(self.x - other.x, self.y - other.y)
+    def __mul__(self, other: int):
+        return IVector2(self.x * other, self.y * other)
+    def __div__(self, other: float):
+        return IVector2(self.x / other, self.y / other)
+    def SqrMagnitude(self):
+        return self.x * self.x + self.y * self.y
+    def Magnitude(self):
+        return numpy.sqrt(self.SqrMagnitude())
+    def Normalized(self):
+        r = self.Magnitude()
+        if (r == .0): return IVector2(.0, .0)
+        return IVector2(self.x / r, self.y / r)
     @staticmethod
-    def DistSqr(vec1, vec2):
-        diffX = vec1[0] - vec2[0]
-        diffY = vec1[1] - vec2[1]
-        return diffX * diffX + diffY * diffY
-    @staticmethod
-    def Distance(vec1, vec2):
-        diffX = vec1[0] - vec2[0]
-        diffY = vec1[1] - vec2[1]
-        return numpy.sqrt(diffX * diffX, diffY * diffY)
+    def GetRight():
+        return IVector2(1, 0)

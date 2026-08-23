@@ -3,7 +3,7 @@ import pygame
 import sys
 sys.path.insert(0, '/customSpriteSheet')
 import customSpriteSheet
-from main import Main
+from main import Main, IVector2
 ###     AI WAS NOT USED IN THE CREATION OF THIS SCRIPT###
 
 
@@ -35,14 +35,15 @@ class Entity:
         self.animIndex = 0
         self.animation = "idle"
         self.flipped = False
-        self.position = Main.halfDisplaySize
+        halfDisp = Main.halfDisplaySize
+        self.position = IVector2(halfDisp[0], halfDisp[1])
         self.numFrames = numFrames
         self.spriteSheets = spriteSheets
     def Animate(self, animation):
         if self.animation != animation: self.animIndex = 0
         self.animation = animation
         attackSheet = self.spriteSheets[animation]
-        attackSheet.blit(Main.screen, self.animIndex, self.position, customSpriteSheet.Origin.Center, self.flipped)
+        attackSheet.blit(Main.screen, self.animIndex, self.position.ToTuple(), customSpriteSheet.Origin.Center, self.flipped)
         if Main.isAnimationUpdate:
             self.animIndex = (self.animIndex + 1) % self.numFrames[animation]
 
@@ -50,12 +51,13 @@ Main.Init()
 player = None
 size = (2, 2)
 player = Entity(numFrames, {"attack" : GetSpriteData("sprites/ATTACK 1.png", "attack"), "idle" : GetSpriteData("sprites/IDLE.png", "idle"), "run": GetSpriteData("sprites/RUN.png", "run")})
-numFrames = {"attack": 7, "idle": 10}
+numFrames = {"attack": 7, "idle": 10, "run" : 16}
 size = (3, 3)
-samurai = Entity(numFrames, {"attack": GetSpriteData("sprites/samurai/ATTACK 1.png", "attack"), "idle": GetSpriteData("sprites/samurai/IDLE.png", "idle")})
-samurai.position = (samurai.position[0] + 800 * random.choice([-1, 1]), samurai.position[1])
+samurai = Entity(numFrames, {"attack": GetSpriteData("sprites/samurai/ATTACK 1.png", "attack"), "idle": GetSpriteData("sprites/samurai/IDLE.png", "idle"), "run": GetSpriteData("sprites/samurai/RUN.png", "run")})
+samurai_x_spawn_offset = 800
+samurai.position += IVector2.GetRight() * samurai_x_spawn_offset * ((random.random() < .5) * 2 - 1)
 samurai_attack_dist = 10
-samurai_speed = 10
+samurai_speed = 350
 clock = pygame.time.Clock()
 max_fps = 144
 pressedKeys = None
@@ -102,10 +104,12 @@ while(True):
     Main.screen.blit(progress_bar_font.render(progress_bar_text, False, (0, 0, 0)), (GetTextPosition(0), GetTextPosition(1)))
     pygame.draw.rect(Main.screen, "black", (progress_bar_position[0] - progress_bar_dilation * .5, progress_bar_position[1] - progress_bar_dilation * .5, progress_bar_size[0] + progress_bar_dilation, progress_bar_size[1] + progress_bar_dilation))
     pygame.draw.rect(Main.screen, "purple", (progress_bar_position[0], progress_bar_position[1], progress_bar_size[0] * progressAmount, progress_bar_size[1]))
-    if Main.DistSqr(player.position, samurai.position) < samurai_attack_dist:
+    enemyToPlr = -samurai.position + player.position
+    if enemyToPlr.SqrMagnitude() < samurai_attack_dist:
         samurai.Animate("attack")
-    else: samurai.Animate("idle")
-    if (player.postion[0] > samurai.position[0]): samurai.position
+    else:
+        samurai.position += enemyToPlr.Normalized() * deltaTime * samurai_speed
+        samurai.Animate("run")
     RegisterLateInput()
     pygame.display.update()
     pygame.display.flip()
