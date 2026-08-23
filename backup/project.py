@@ -49,7 +49,7 @@ def CheckAnimationUpdateInterval():
     if (not IsPowTwo(animation_update_interval)): raise Exception("\"animation_update_interval\" is not a power of two.")
 CheckAnimationUpdateInterval()
 class Entity:
-    def __init__(self, numFrames, spriteSheets, speed = 350, immune_time = .3, damage = .1):
+    def __init__(self, numFrames, spriteSheets, speed = 350, immune_time = .3, damage = .04):
         self.animIndex = 0
         self.animation = "idle"
         self.flipped = False
@@ -79,24 +79,29 @@ class Entity:
     def TakeDamage(self, damage):
         if (self.immuneTimer < self.immune_time): return
         self.immuneTimer = .0
-        self.health = max(.0, self.health - damage)
+        newHealth = self.health - damage
+        #max func wasn't working
+        self.health = (.0 if newHealth < .0 else newHealth)
 class Enemy(Entity):
     def __init__(self, numFrames, spriteSheets, index, speed = 350, immune_time = .3):
         super().__init__(numFrames, spriteSheets, speed, immune_time)
-        self.damageDist = 20
+        self.damageDist = 28
         self.index = index
     def Update(self):
         if self.health == .0:
             ReloadEnemy(self.index)
+            return
         super().Update()
         DrawSlider("red", (self.position + enemy_hb_offset).ToTuple(), enemy_hb_dilation, enemy_hb_size, self.pseudoHealth)
     def Animate(self, animation):
+        if self.health == .0:
+            return
         super().Animate(animation, samurai_offset)
 
 Main.Init()
 
 size = (2, 2)
-player = Entity(numFrames, {"attack" : GetSpriteData("sprites/ATTACK 1.png", "attack"), "idle" : GetSpriteData("sprites/IDLE.png", "idle"), "run": GetSpriteData("sprites/RUN.png", "run"), "death": GetSpriteData("sprites/DEATH.png", "death")}, 500, .3, .5)
+player = Entity(numFrames, {"attack" : GetSpriteData("sprites/ATTACK 1.png", "attack"), "idle" : GetSpriteData("sprites/IDLE.png", "idle"), "run": GetSpriteData("sprites/RUN.png", "run"), "death": GetSpriteData("sprites/DEATH.png", "death")}, 500, .3, .4)
 
 numFrames = {"attack": 7, "idle": 10, "run" : 16}
 size = (3, 3)
@@ -106,10 +111,11 @@ samurai_spawn_offset = IVector2(800, 1000)
 samurai_attack_dist = 10
 
 def ReloadEnemy(index):
-    samurais[index] = Enemy(numFrames, {"attack": GetSpriteData("sprites/samurai/ATTACK 1.png", "attack"), "idle": GetSpriteData("sprites/samurai/IDLE.png", "idle"), "run": GetSpriteData("sprites/samurai/RUN.png", "run")}, i, 300)
+    samurais[index] = Enemy(numFrames, {"attack": GetSpriteData("sprites/samurai/ATTACK 1.png", "attack"), "idle": GetSpriteData("sprites/samurai/IDLE.png", "idle"), "run": GetSpriteData("sprites/samurai/RUN.png", "run")}, index, 300)
     samurai = samurais[index]
+    halfDisp = Main.halfDisplaySize
     rand = random.random()
-    samurai.position += IVector2.GetRight() * (samurai_spawn_offset.x + 200 * rand) * ((rand < .5) * 2 - 1)
+    samurai.position = halfDisp + IVector2.GetRight() * (samurai_spawn_offset.x + 200 * rand) * ((rand < .5) * 2 - 1)
     rand = random.random()
     samurai.position += IVector2.GetUp() * (samurai_spawn_offset.y + 200 * rand) * ((rand < .5) * 2 - 1)
 
@@ -198,7 +204,8 @@ while(True):
     vert = KeyDown(pygame.K_s) - KeyDown(pygame.K_w)
     if horizon or vert:
         player.Animate("run")
-        player.flipped = horizon == -1 and horizon != 1
+        player.flipped |= horizon == -1
+        player.flipped &= horizon != 1
         player.position += IVector2(horizon, vert) * deltaTime * player.speed
     else:
         if KeyDown(pygame.K_SPACE):
@@ -212,6 +219,10 @@ while(True):
     DrawSlider("purple", progress_bar_position, progress_bar_dilation, progress_bar_size, progressAmount, progress_bar_text, progress_bar_text_offset)
     DrawSlider("red", health_bar_position, health_bar_dilation, health_bar_size, player.pseudoHealth, health_bar_text, health_bar_text_offset)
     for samurai in samurais:
+        if samurai.health == .0:
+            samurai.Update()
+            continue
+        samurai.Update()
         enemyToPlr = -samurai.position + player.position
         if enemyToPlr.SqrMagnitude() < samurai_attack_dist:
             player.TakeDamage(samurai.damage)
@@ -220,7 +231,6 @@ while(True):
             samurai.position += enemyToPlr.Normalized() * deltaTime * samurai.speed
             samurai.Animate("run")
         samurai.flipped = bool(player.position.x < samurai.position.x)
-        samurai.Update()
     player.Update()
     wasDead = False
     AfterUpdate()
