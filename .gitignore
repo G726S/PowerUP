@@ -1,0 +1,22 @@
+# Set env vars in a real .env file (see .env.example) -- never commit it.
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Backend runtime data (regenerated/session-specific, not source)
+backend/.sessions_store/
+backend/.pdf_context_cache/
+
+# Frontend
+node_modules/
+dist/
+build/
+
+# OS
+.DS_Store
+
+# Misc
+*.zip
