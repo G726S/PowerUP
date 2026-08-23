@@ -10,7 +10,7 @@ from main import Main, IVector2
 def IsPowTwo(x):
     return bool((((x - 1) | x) + 1) == (x << 1));
 
-numFrames = {"attack" : 6, "idle": 7, "run": 8}
+numFrames = {"attack" : 6, "idle": 7, "run": 8, "death": 12}
 size = (-1, -1)
 def GetSpriteData(path, name):
     return customSpriteSheet.SpriteSheet(path, numFrames[name], 1, (0,0,0), size)
@@ -45,8 +45,9 @@ samurai_offset = (0, -57)
 
 frameIndex = 0
 animation_update_interval = 8
-if (not IsPowTwo(animation_update_interval)): raise Exception("\"animation_update_interval\" is not a power of two.")
-
+def CheckAnimationUpdateInterval():
+    if (not IsPowTwo(animation_update_interval)): raise Exception("\"animation_update_interval\" is not a power of two.")
+CheckAnimationUpdateInterval()
 class Entity:
     def __init__(self, numFrames, spriteSheets, speed = 350, immune_time = .3, damage = .1):
         self.animIndex = 0
@@ -62,13 +63,16 @@ class Entity:
         self.immuneTimer = self.immune_time + Main.epsilon
         self.pseudoHealth = self.health
         self.healthMoveSpeed = 10.0
-    def Animate(self, animation, offset = (0, 0)):
+    def Animate(self, animation, offset = (0, 0), loop = True):
         if self.animation != animation: self.animIndex = 0
         self.animation = animation
         attackSheet = self.spriteSheets[animation]
+        animNumFrames = self.numFrames[animation]
         if Main.isAnimationUpdate:
-            self.animIndex = (self.animIndex + 1) % self.numFrames[animation]
-        attackSheet.blit(Main.screen, self.animIndex, self.position.ToTuple(), customSpriteSheet.Origin.Center, self.flipped, offset)
+            if loop or self.animIndex != animNumFrames - 1:
+                self.animIndex = (self.animIndex + 1) % animNumFrames
+        ##the "(animNumFrames - 1) * self.flipped + self.animIndex * (self.flipped * -2 + 1)" is here because we are flipping the entire spritesheet, so if we don't do this branchless logic, the animation will actually play backwards
+        attackSheet.blit(Main.screen, (animNumFrames - 1) * self.flipped + self.animIndex * (self.flipped * -2 + 1), self.position.ToTuple(), customSpriteSheet.Origin.Center, self.flipped, offset)
     def Update(self):
         self.pseudoHealth = Main.Lerp(self.pseudoHealth, self.health, deltaTime * self.healthMoveSpeed)
         self.immuneTimer += deltaTime
@@ -79,7 +83,7 @@ class Entity:
 class Enemy(Entity):
     def __init__(self, numFrames, spriteSheets, index, speed = 350, immune_time = .3):
         super().__init__(numFrames, spriteSheets, speed, immune_time)
-        self.damageDist = 10
+        self.damageDist = 20
         self.index = index
     def Update(self):
         if self.health == .0:
@@ -91,9 +95,8 @@ class Enemy(Entity):
 
 Main.Init()
 
-player = None
 size = (2, 2)
-player = Entity(numFrames, {"attack" : GetSpriteData("sprites/ATTACK 1.png", "attack"), "idle" : GetSpriteData("sprites/IDLE.png", "idle"), "run": GetSpriteData("sprites/RUN.png", "run")}, 500, .3, .5)
+player = Entity(numFrames, {"attack" : GetSpriteData("sprites/ATTACK 1.png", "attack"), "idle" : GetSpriteData("sprites/IDLE.png", "idle"), "run": GetSpriteData("sprites/RUN.png", "run"), "death": GetSpriteData("sprites/DEATH.png", "death")}, 500, .3, .5)
 
 numFrames = {"attack": 7, "idle": 10, "run" : 16}
 size = (3, 3)
@@ -147,7 +150,7 @@ death_max_time = 3.0
 deathTime = death_max_time + Main.epsilon
 wasDead = False
 
-def AfterUpdate():
+def AfterUpdate(alternateUpdateInterval = animation_update_interval):
     global frameIndex
     global animation_update_interval
     global delta_time_scaling
@@ -156,7 +159,7 @@ def AfterUpdate():
     pygame.display.update()
     pygame.display.flip()
     frameIndex += 1
-    Main.isAnimationUpdate = not bool(frameIndex & (animation_update_interval - 1))
+    Main.isAnimationUpdate = not bool(frameIndex & (alternateUpdateInterval - 1))
     deltaTime = clock.tick(max_fps) * delta_time_scaling
 
 def GetTextPosition(index, position, offset):
@@ -177,6 +180,7 @@ while(True):
     if player.health == .0:
         if BeforeUpdate(): break
         Main.screen.blit(deathFont.render(f'YOU ARE DEAD (respawn in {int(death_max_time - deathTime) + 1})', False, (0, 0, 0)), (Main.halfDisplaySize + death_text_offset).ToTuple())
+        player.Animate("death", (0, 0), False)
         deathTime += deltaTime
         if not wasDead:
             deathTime = .0
@@ -185,7 +189,8 @@ while(True):
             for i in range(num_enemies):
                 ReloadEnemy(i)
         wasDead = True
-        AfterUpdate()
+        AfterUpdate(animation_update_interval * 4)
+        CheckAnimationUpdateInterval()
         continue
     ##register input BEFORE checking for any input
     if (BeforeUpdate()): break
@@ -193,7 +198,7 @@ while(True):
     vert = KeyDown(pygame.K_s) - KeyDown(pygame.K_w)
     if horizon or vert:
         player.Animate("run")
-        player.flipped = (horizon == -1)
+        player.flipped = horizon == -1 and horizon != 1
         player.position += IVector2(horizon, vert) * deltaTime * player.speed
     else:
         if KeyDown(pygame.K_SPACE):
