@@ -21,6 +21,8 @@ pygame.font.init()
 #the amount of time in seconds the player will play for before switching to the problems
 play_time = 40
 font = pygame.font.Font("fonts/Pixie.ttf", 45)
+deathFont = pygame.font.Font("fonts/Pixie.ttf", 120)
+death_text_offset = IVector2(-540, -80)
 
 progressAmount = 1.0
 progress_bar_size = (1706 * .4, 30)
@@ -77,16 +79,11 @@ class Entity:
 class Enemy(Entity):
     def __init__(self, numFrames, spriteSheets, index, speed = 350, immune_time = .3):
         super().__init__(numFrames, spriteSheets, speed, immune_time)
-        self.damageDist = 8
+        self.damageDist = 10
         self.index = index
     def Update(self):
         if self.health == .0:
-            self.health = 1.0
-            halfDisp = Main.halfDisplaySize
-            rand = random.random()
-            samurai.position = halfDisp + IVector2.GetRight() * (samurai_spawn_offset.x + 200 * rand) * ((rand < .5) * 2 - 1)
-            rand = random.random()
-            samurai.position = halfDisp + IVector2.GetUp() * (samurai_spawn_offset.y + 200 * rand) * ((rand < .5) * 2 - 1)
+            ReloadEnemy(self.index)
         super().Update()
         DrawSlider("red", (self.position + enemy_hb_offset).ToTuple(), enemy_hb_dilation, enemy_hb_size, self.pseudoHealth)
     def Animate(self, animation):
@@ -101,18 +98,20 @@ player = Entity(numFrames, {"attack" : GetSpriteData("sprites/ATTACK 1.png", "at
 numFrames = {"attack": 7, "idle": 10, "run" : 16}
 size = (3, 3)
 num_enemies = 3
-samurais = []
+samurais = [None] * num_enemies
 samurai_spawn_offset = IVector2(800, 1000)
 samurai_attack_dist = 10
 
-for i in range(num_enemies):
-    samurai = Enemy(numFrames, {"attack": GetSpriteData("sprites/samurai/ATTACK 1.png", "attack"), "idle": GetSpriteData("sprites/samurai/IDLE.png", "idle"), "run": GetSpriteData("sprites/samurai/RUN.png", "run")}, i, 300)
-    samurais.append(samurai)
+def ReloadEnemy(index):
+    samurais[index] = Enemy(numFrames, {"attack": GetSpriteData("sprites/samurai/ATTACK 1.png", "attack"), "idle": GetSpriteData("sprites/samurai/IDLE.png", "idle"), "run": GetSpriteData("sprites/samurai/RUN.png", "run")}, i, 300)
+    samurai = samurais[index]
     rand = random.random()
     samurai.position += IVector2.GetRight() * (samurai_spawn_offset.x + 200 * rand) * ((rand < .5) * 2 - 1)
     rand = random.random()
     samurai.position += IVector2.GetUp() * (samurai_spawn_offset.y + 200 * rand) * ((rand < .5) * 2 - 1)
 
+for i in range(num_enemies):
+    ReloadEnemy(i)
 
 clock = pygame.time.Clock()
 max_fps = 144
@@ -129,12 +128,36 @@ def HeldKey(key):
 def KeyDown(key):
     return pressingKeys[key]
 
-def RegisterInput():
+def BeforeUpdate() -> bool:
+    Main.screen.fill("white")
     global pressingKeys
     pressingKeys = pygame.key.get_pressed()
+    if pressedKeys != None and HeldKey(pygame.K_LCTRL) and PressOnFrame(pygame.K_q):
+        return True
+    return False
 def RegisterLateInput():
     global pressedKeys
     pressedKeys = pressingKeys
+
+deltaTime = .0
+#milliseconds --> seconds
+delta_time_scaling = .001
+
+death_max_time = 3.0
+deathTime = death_max_time + Main.epsilon
+wasDead = False
+
+def AfterUpdate():
+    global frameIndex
+    global animation_update_interval
+    global delta_time_scaling
+    global deltaTime
+    RegisterLateInput()
+    pygame.display.update()
+    pygame.display.flip()
+    frameIndex += 1
+    Main.isAnimationUpdate = not bool(frameIndex & (animation_update_interval - 1))
+    deltaTime = clock.tick(max_fps) * delta_time_scaling
 
 def GetTextPosition(index, position, offset):
     return position[index] + offset[index]
@@ -144,27 +167,34 @@ def DrawSlider(innerColor, position, dilation, size, amount, text = "", textOffs
     if (text == ""): return
     Main.screen.blit(font.render(text, False, (0, 0, 0)), (GetTextPosition(0, position, textOffset), GetTextPosition(1, position, textOffset)))
 
-RegisterInput()
+BeforeUpdate()
 RegisterLateInput()
-
-deltaTime = .0
-#milliseconds --> seconds
-delta_time_scaling = .001
 
 while(True):
     for event in pygame.event.get():
         if (event.type == pygame.QUIT):
             break
+    if player.health == .0:
+        if BeforeUpdate(): break
+        Main.screen.blit(deathFont.render(f'YOU ARE DEAD (respawn in {int(death_max_time - deathTime) + 1})', False, (0, 0, 0)), (Main.halfDisplaySize + death_text_offset).ToTuple())
+        deathTime += deltaTime
+        if not wasDead:
+            deathTime = .0
+        if (deathTime > death_max_time):
+            player.health = 1.0
+            for i in range(num_enemies):
+                ReloadEnemy(i)
+        wasDead = True
+        AfterUpdate()
+        continue
     ##register input BEFORE checking for any input
-    RegisterInput()
-    if HeldKey(pygame.K_LCTRL) and PressOnFrame(pygame.K_q):
-        break
-    Main.screen.fill("white")
+    if (BeforeUpdate()): break
     horizon = KeyDown(pygame.K_d) - KeyDown(pygame.K_a)
-    if horizon:
+    vert = KeyDown(pygame.K_s) - KeyDown(pygame.K_w)
+    if horizon or vert:
         player.Animate("run")
         player.flipped = (horizon == -1)
-        player.position += IVector2.GetRight() * horizon * deltaTime * player.speed
+        player.position += IVector2(horizon, vert) * deltaTime * player.speed
     else:
         if KeyDown(pygame.K_SPACE):
             player.Animate("attack")
@@ -187,10 +217,6 @@ while(True):
         samurai.flipped = bool(player.position.x < samurai.position.x)
         samurai.Update()
     player.Update()
-    RegisterLateInput()
-    pygame.display.update()
-    pygame.display.flip()
-    frameIndex += 1
-    Main.isAnimationUpdate = not bool(frameIndex & (animation_update_interval - 1))
-    deltaTime = clock.tick(max_fps) * delta_time_scaling
+    wasDead = False
+    AfterUpdate()
 pygame.quit()
